@@ -1,0 +1,129 @@
+<html>
+<head>
+    <script src="http://code.jquery.com/jquery-1.11.3.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script>
+        var tid;
+        var start;
+
+        $(document).ready(function () {
+            $("#update").on("click", function () {
+                $("#snaps").val("");
+                plot($("#experiment").val());
+            });
+
+
+            $("#play").on("click", function () {
+                start = new Date();
+                tid = setInterval(move_plot, 50);
+            });
+
+            $("#stop").on("click", function () {
+                clearInterval(tid);
+            });
+
+        });
+
+        function plot(experiment_id) {
+            $.get('/data/experiment' + experiment_id + '.csv', function (txt) {
+                let lines = txt.split('\n');
+                let x = [];
+                let y = [];
+                let z = [];
+                let shift = [];
+                for (let i = 1; i < lines.length; i++) {
+                    x.push(lines[i].split(",")[0]);
+                    y.push(lines[i].split(",")[1]);
+                    z.push(lines[i].split(",")[2]);
+                    shift.push(parseFloat(lines[i].split(",")[3]));
+                }
+                let start = shift[0];
+                $("#start").val(start);
+                let time = shift.map(function (v) {
+                    return (v - start);
+                });
+
+                var data = [
+                    {
+                        x: time, y: x, type: 'scatter', name: 'x'
+                    },
+                    {
+                        x: time, y: y, type: 'scatter', name: 'y'
+                    },
+                    {
+                        x: time, y: z, type: 'scatter', name: 'z'
+                    }
+                ];
+                let layout = {
+                    "dragmode": 'pan',
+                    "title": "Accelerometer",
+                    "height": 400,
+                    "xaxis": {
+                        "showspikes": true,
+                        "rangeslider": {
+                            "visible": false
+                        },
+                        "range": [0, 1]
+                    },
+                    "yaxis": {"showspikes": true, "side": 'right'}
+                };
+
+                Plotly.newPlot("chart-acc", data, layout);
+            }, 'text');
+
+            $.get('/data/audio-levels-' + experiment_id + '.csv', function (audio) {
+
+                let levels = audio.split('\n');
+                let tick = [];
+                let level = [];
+                for (let i = 1; i < levels.length; i++) {
+                    tick.push(parseFloat(levels[i].split(",")[0]) / 12000 - 0.03);
+                    level.push(levels[i].split(",")[1]);
+                }
+
+                var data = [
+                    {
+                        x: tick, y: level, type: 'scatter', name: 'audio', line: {color: '#d62728'}
+                    }
+                ];
+                let layout = {
+                    "dragmode": 'pan',
+                    "height": 400,
+                    "title": "Audio",
+                    "xaxis": {
+                        "showspikes": true,
+                        "rangeslider": {
+                            "visible": false
+                        },
+                        "range": [0, 1]
+                    },
+                    "yaxis": {"showspikes": true, "side": 'right'}
+                };
+                Plotly.newPlot("chart-audio", data, layout);
+            }, 'text');
+        }
+
+        function move_plot() {
+            x_min = (Date.now() - start) / 1000;
+
+            Plotly.relayout("chart-acc", {'xaxis.range': [x_min, x_min + 1]})
+            Plotly.relayout("chart-audio", {'xaxis.range': [x_min, x_min + 1]})
+            console.log(Date.now() - start);
+        }
+    </script>
+    <style>
+        .modebar {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+<div id="control" style="text-align: center">
+    <input id="experiment" value="9" size="3"><input type="button" id="update" value="Update">
+</div>
+<div><input type="button" id="play" value="Play"><input type="button" id="stop" value="Stop"></div>
+<div id="chart-acc"></div>
+<div id="chart-audio"></div>
+<div>Time shift: <input type="text" id="start"></div>
+</body>
+</html>

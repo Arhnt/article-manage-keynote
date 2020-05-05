@@ -1,0 +1,135 @@
+<html>
+<head>
+    <script src="http://code.jquery.com/jquery-1.11.3.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script>
+        $(document).ready(function () {
+            $("#update").on("click", function () {
+                $("#snaps").val("");
+                plot($("#experiment").val());
+            });
+
+            $("#chart").on('plotly_click', function (event, data) {
+                if (data.points.length > 0) {
+                    let time = data.points[0].x + parseFloat($("#start").val());
+                    time = time.toFixed(5);
+                    if ($("#snaps").val().endsWith(",")) {
+                        $("#snaps").val($("#snaps").val() + time + "\n").trigger("input");
+                    } else {
+                        $("#snaps").val($("#snaps").val() + time + ",");
+                    }
+                }
+            });
+
+            $("body").on('input propertychange', "#snaps", function () {
+                shapes = [];
+
+                lines = $("#snaps").val().split("\n");
+                for (let i = 0; i < lines.length; i++) {
+                    if (lines[i].split(",").length === 2) {
+                        let start = parseFloat($("#start").val());
+                        shapes.push(
+                            {
+                                type: 'rect',
+                                x0: parseFloat(lines[i].split(",")[0]) - start,
+                                y0: 0,
+                                x1: parseFloat(lines[i].split(",")[1]) - start,
+                                y1: 1,
+                                yref: 'paper',
+                                fillcolor: '#d3d3d3',
+                                opacity: 0.5,
+                                line: {
+                                    width: 0
+                                }
+                            }
+                        );
+                    }
+                }
+                console.log(shapes);
+                Plotly.relayout('chart', {shapes: shapes})
+            });
+
+            plot($("#experiment").val());
+
+        });
+
+        function plot(experiment_id) {
+            let layout = {
+                "dragmode": 'pan',
+                "title": experiment,
+                "hovermode": 'closest',
+                "xaxis": {
+                    "showspikes": true,
+                    "rangeslider": {
+                        "visible": true
+                    },
+                    "range": [3.6, 4.6]
+                },
+                "yaxis": {
+                    "showspikes": true
+                },
+                "yaxis2": {
+                    "overlaying": 'y',
+                    "side": 'right'
+                }
+            };
+
+            $.get('/data/experiment' + experiment_id + '.csv', function (txt) {
+                $.get('/data/audio-levels-' + experiment_id + '.csv', function (audio) {
+                    let lines = txt.split('\n');
+                    let x = [];
+                    let y = [];
+                    let z = [];
+                    let shift = [];
+                    for (let i = 1; i < lines.length; i++) {
+                        x.push(lines[i].split(",")[0]);
+                        y.push(lines[i].split(",")[1]);
+                        z.push(lines[i].split(",")[2]);
+                        shift.push(parseFloat(lines[i].split(",")[3]));
+                    }
+                    let start = shift[0];
+                    $("#start").val(start);
+                    let time = shift.map(function (v) {
+                        return (v - start);
+                    });
+
+                    let levels = audio.split('\n');
+                    let tick = [];
+                    let level = [];
+                    for (let i = 1; i < levels.length; i++) {
+                        tick.push(parseFloat(levels[i].split(",")[0]) / 12000 - 0.085);
+                        level.push(levels[i].split(",")[1]);
+                    }
+
+                    var data = [
+                        {
+                            x: time, y: x, type: 'scatter', name: 'x'
+                        },
+                        {
+                            x: time, y: y, type: 'scatter', name: 'y'
+                        },
+                        {
+                            x: time, y: z, type: 'scatter', name: 'z'
+                        },
+                        {
+                            x: tick, y: level, type: 'scatter', name: 'audio', yaxis: 'y2'
+                        }
+                    ];
+                    Plotly.newPlot("chart", data, layout);
+                }, 'text');
+            }, 'text');
+
+        }
+    </script>
+</head>
+<body>
+<div id="control" style="text-align: center">
+    <input id="experiment" value="9" size="3"><input type="button" id="update" value="Update">
+</div>
+<div id="chart"></div>
+<div>
+    <textarea id="snaps" style="width: 50%; height: 100px"></textarea>
+</div>
+<div>Time shift: <input type="text" id="start"></div>
+</body>
+</html>
